@@ -1,4 +1,3 @@
-console.log('VITE_API_URL from env:', import.meta.env.VITE_API_URL);
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 async function request<T>(
@@ -6,11 +5,25 @@ async function request<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+
+  // Add JWT token if available
+  const token = localStorage.getItem('GUARDIAN_TOKEN');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BASE_URL}/api${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+
+  // Handle 401 - clear token but don't auto-redirect to prevent loops
+  if (res.status === 401) {
+    localStorage.removeItem('GUARDIAN_TOKEN');
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: res.statusText }));
     throw new Error(error.message || `Request failed: ${res.status}`);
@@ -84,6 +97,21 @@ export const agreementsApi = {
   create: (data: any) => post<any>('/agreements', data),
   update: (id: string, data: any) => put<any>(`/agreements/${id}`, data),
   remove: (id: string) => del(`/agreements/${id}`),
+};
+
+// ── Appointments ──────────────────────────────────────────
+export const appointmentsApi = {
+  getAll: (parentId?: string, teacherId?: string) => {
+    const params = new URLSearchParams();
+    if (parentId) params.append('parentId', parentId);
+    if (teacherId) params.append('teacherId', teacherId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return get<any[]>(`/appointments${qs}`);
+  },
+  getOne: (id: string) => get<any>(`/appointments/${id}`),
+  create: (data: any) => post<any>('/appointments', data),
+  update: (id: string, data: any) => put<any>(`/appointments/${id}`, data),
+  remove: (id: string) => del(`/appointments/${id}`),
 };
 
 // ── Dashboard ─────────────────────────────────────────────────
